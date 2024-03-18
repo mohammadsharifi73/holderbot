@@ -1,8 +1,9 @@
 from pyrogram import *
 from pyrogram.types import *
 from pyrogram.errors.exceptions import *
-
-
+import requests
+import json
+import traceback
 from Function.db import *
 from Function.keyboards import *
 from Function.qr import *
@@ -12,17 +13,21 @@ from Function.users import *
 from Function.nodes import *
 from Function.create import *
 from Function.stase import *
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from datetime import datetime
+
+from datetime import datetime, timedelta
 import re , os
+# Define the callback data constants
+EDIT_DATA_LIMIT = "edit_data_limit"
+EDIT_EXPIRE_DURATION = "edit_expire_duration"
 
-
+user_session = {}
 app = Client( 
     "holder",      
     api_id=26410400,
     api_hash="408bf51732560cb81a0e32533b858cbf",
     bot_token=DEF_GET_BOT_TOKEN()) #from db , bot table
-
 
 @app.on_message(filters.private)
 async def holderbot(client: Client, message: Message) :
@@ -37,12 +42,13 @@ async def holderbot(client: Client, message: Message) :
             MESSAGE_TEXT = message.text
         else :
             return
-                        
-        if MESSAGE_TEXT in ["🔙 cancel" , "/cancel" , "cancel" , "❌ NO ,forget."]  :
+        
+        #print(MESSAGE_TEXT)
+        
+        if MESSAGE_TEXT in ["🔙 cancel" , "/cancel" , "cancel" , "❌ NO ,forget." ]  :
             await client.send_message(chat_id=MESSAGE_CHATID , text=f"🏛" , reply_markup=KEYBOARD_HOME)
             UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
             return
-        
         
         CHECK_STEP = DEF_CHECK_STEP(MESSAGE_CHATID)
         if CHECK_STEP == "None" :
@@ -102,17 +108,97 @@ async def holderbot(client: Client, message: Message) :
                 KEYBOARD_TEMPLATES = KEYBOARD_CREATE_LIST()
                 await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>Please select a template or create user manually.</b>" , reply_markup=KEYBOARD_TEMPLATES , parse_mode=enums.ParseMode.HTML , disable_web_page_preview=True )
                 UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"create | wait to select command")
+            
+            elif MESSAGE_TEXT == "✏️ Edit Users" :
 
+                user_session[MESSAGE_CHATID] = {'edit_field': ['data_limit', 'expire_duration']}
+                await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>Please enter the User and the new data limit in GB and the new expire duration in day separated in space:</b>" , parse_mode=enums.ParseMode.HTML , disable_web_page_preview=True )
             elif MESSAGE_TEXT == "🎖 Notice" :
                 await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>Welcome to the Messages section! This feature has been added with sponsorship the <a href='https://t.me/GrayServer'>Gray</a> collection.❤️ You can visit the Gray collection channel and bot for purchasing servers on an hourly and monthly basis, with a wide variety of locations and specifications, accompanied by clean IPs at the lowest prices.\n\nTo utilize this feature, you first need to create an inbound according to the tutorial on GitHub Wiki or the Telegram channel tutorial for Holderbot. Then, in the host setting section of that inbound, write down the texts you desire to be displayed to the user upon completion of the configuration update.\n\nYour Messages is <code>{DEF_GET_MESSAGE_STATUS(MESSAGE_CHATID)}</code></b>" , reply_markup=KEYBOARD_MESSAGES , parse_mode=enums.ParseMode.HTML , disable_web_page_preview=True )
                 UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"message | wait to select command")
-                                
             else :
                 if MESSAGE_TEXT == "🧨" or ("boss of one") in MESSAGE_TEXT or "set the messages." in MESSAGE_TEXT or "(Checker)" in MESSAGE_TEXT :
                     return
-                TEXT , KEYBOARD_UPDATE_STASE = DEF_STASE_USER (MESSAGE_CHATID , MESSAGE_TEXT , KEYBOARD_HOME)
-                await client.send_message(chat_id=MESSAGE_CHATID , text=TEXT , reply_markup=KEYBOARD_UPDATE_STASE , parse_mode=enums.ParseMode.HTML)
-                return      
+                if not user_session:
+                    TEXT , KEYBOARD_UPDATE_STASE = DEF_STASE_USER (MESSAGE_CHATID , MESSAGE_TEXT , KEYBOARD_HOME)
+                    await client.send_message(chat_id=MESSAGE_CHATID , text=TEXT , reply_markup=KEYBOARD_UPDATE_STASE , parse_mode=enums.ParseMode.HTML)
+                    return    
+                else:
+                    user_id = message.from_user.id
+                    #print(user_id,MESSAGE_CHATID)
+                    if user_id in user_session and 'edit_field' in user_session[user_id]:
+                        user_response = message.text.split()
+                        if len(user_response) == 2:
+                            username = user_session[user_id]['username']
+                            try:
+                                data_limit = float(user_response[0])  # Convert first value to float
+                                expire_duration = int(user_response[1])  # Convert second value to int
+                                # Update user_session
+                                if user_id in user_session:
+                                    user_session[user_id]['edit_field'] = {'data_limit': data_limit, 'expire_duration': expire_duration}
+                                    new_data_limit_gb = float(data_limit)
+                                    new_expire_duration_days = int(expire_duration)
+                                    success = update_user_data(user_id, username, new_data_limit_gb, new_expire_duration_days)
+                                    response_text = "User info updated successfully." if success else "Failed to update data limit."
+                                    await message.reply_text(response_text)
+                                else:
+                                    await message.reply_text("User session not found.")
+                            except ValueError:
+                                await message.reply_text("Invalid input. Please enter valid numbers for data limit and expire duration.")
+                        elif len(user_response) == 1:
+                            edit_field = user_session[user_id]['edit_field']
+                            username = user_session[user_id]['username']
+                            
+                            # Handling input for data limit
+                            if edit_field == 'data_limit':
+                                try:
+                                    new_data_limit_gb = float(message.text)
+                                    success = update_user_data(user_id, username, new_data_limit_gb, None)
+                                    response_text = "Data limit updated successfully." if success else "Failed to update data limit."
+                                    await message.reply_text(response_text)
+                                except ValueError:
+                                    await message.reply_text("Please enter a valid number for data limit in GB.")
+                            
+                            # Handling input for expire duration
+                            elif edit_field == 'expire_duration':
+                                try:
+                                    new_expire_duration_days = int(message.text)
+                                    success = update_user_data(user_id, username, None, new_expire_duration_days)
+                                    response_text = "Expire duration updated successfully." if success else "Failed to update expire duration."
+                                    await message.reply_text(response_text)
+                                except ValueError:
+                                    await message.reply_text("Please enter a valid number of days for expire duration.")
+
+                        else:
+                            try:
+                                input_str=message.text
+                                input_str = re.sub(r'\n+', '\n', input_str)
+                                lines = input_str.strip().split('\n')
+                                for user_response in lines:
+                                    user_response=user_response.split()
+                                    data_limit = float(user_response[1])  # Convert first value to float
+                                    expire_duration = int(user_response[2])  # Convert second value to int
+                                    username='user'+user_response[0]
+                                    #print(data_limit,expire_duration,username)
+                                    # Update user_session
+                                    if user_id in user_session:
+                                        user_session[user_id]['edit_field'] = {'data_limit': data_limit, 'expire_duration': expire_duration}
+                                        new_data_limit_gb = float(data_limit)
+                                        new_expire_duration_days = int(expire_duration)
+                                        success = update_user_data(user_id, username, new_data_limit_gb, new_expire_duration_days)
+                                        response_text = username+" done." if success else username+"Failed."
+                                        await message.reply_text(response_text)
+                                    else:
+                                        await message.reply_text("User session not found.")
+                                await message.reply_text("Users info updated successfully.")
+                            except Exception as e:
+                                tb = traceback.format_exc()
+                                print(f"An error occurred: {e}\n{tb}")
+                           # except ValueError:
+                           #     await message.reply_text("Invalid input. Please enter valid numbers.")
+                      
+                        # Clear user session after processing
+                        del user_session[user_id]
 
         else :
             MESSAGES_SPLIT = MESSAGE_TEXT.strip().split(" ")
@@ -274,7 +360,7 @@ async def holderbot(client: Client, message: Message) :
                         NODE_ID = int(STEP_SPLIT[4])
 
                         if MESSAGE_TEXT == "🔏 Usage Coefficient" :
-                            TEXT = "<b>Plase enter a float (0.0) number.\nlike this :</b> <code>0.4</code> , <code>1.2</code> , <code>3.5</code> , <code>8.0</code>"
+                            TEXT = "<b>Plase enter a float(0.0) number.\nlike this :</b> <code>0.4</code> , <code>1.2</code> , <code>3.5</code> , <code>8.0</code>"
                             await client.send_message(chat_id=MESSAGE_CHATID , text=TEXT , reply_markup=KEYBOARD_CANCEL , parse_mode=enums.ParseMode.HTML)
                             UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,f"nodes | Usage Coefficient {NODE_ID}")
                             
@@ -406,8 +492,17 @@ async def holderbot(client: Client, message: Message) :
                                 USER_SUB = DEF_CREATE_USER(MESSAGE_CHATID , USERNAME , DATA , DATE , json.loads(PROXIES) , json.loads(INBOUNDS))
                                 if not "❌" in USER_SUB :
                                     QRCODE_IMG = DEF_CREATE_QRCODE(USER_SUB)
-                                    await client.send_photo(chat_id=MESSAGE_CHATID , photo=QRCODE_IMG,caption=f"<pre>{USER_SUB}</pre>" , reply_markup=KEYBOARD_HOME)
-                                    await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>✅ <code>{USERNAME}</code> | {DATA} GB | {DATE} Days</b>" , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
+                                    #await client.send_photo(chat_id=MESSAGE_CHATID , photo=QRCODE_IMG,caption=f"<pre>{USER_SUB}</pre>" , reply_markup=KEYBOARD_HOME)
+                                    usrnm = USERNAME.replace('user', '')
+                                    await client.send_photo(
+                                                                chat_id=MESSAGE_CHATID, 
+                                                                photo=QRCODE_IMG,
+                                                                caption=f"<b>⚜️ کاربر {usrnm}</b>\n\n"
+                                                                        f"🔗 روی لینک زیر کلیک کنید تا کپی شود:\n"
+                                                                        f"`{USER_SUB}`\n\n"
+                                                                        f"❇️ <a href='{USER_SUB}'>برای آموزش چگونگی اتصال و مشاهده باقیمانده اشتراک خود بر روی این متن کلیک کنید‌.</a>"
+                                                            )
+                                    #await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>✅ <code>{USERNAME}</code> | {DATA} GB | {DATE} Days</b>" , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
                                     UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
                                 else :
                                     await client.send_message(chat_id=MESSAGE_CHATID , text=USER_SUB , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
@@ -418,8 +513,17 @@ async def holderbot(client: Client, message: Message) :
                                     USER_SUB = DEF_CREATE_USER(MESSAGE_CHATID , USERNAME , DATA , DATE , json.loads(PROXIES) , json.loads(INBOUNDS))
                                     if not "❌" in USER_SUB :
                                         QRCODE_IMG = DEF_CREATE_QRCODE(USER_SUB)
-                                        await client.send_photo(chat_id=MESSAGE_CHATID , photo=QRCODE_IMG,caption=f"<pre>{USER_SUB}</pre>" , reply_markup=ReplyKeyboardRemove())
-                                        await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>✅ <code>{USERNAME}</code> | {DATA} GB | {DATE} Days</b>" , reply_markup=ReplyKeyboardRemove() , parse_mode=enums.ParseMode.HTML)
+                                        #await client.send_photo(chat_id=MESSAGE_CHATID , photo=QRCODE_IMG,caption=f"<pre>{USER_SUB}</pre>" , reply_markup=ReplyKeyboardRemove())
+                                        usrnm = USERNAME.replace('user', '')
+                                        await client.send_photo(
+                                                                    chat_id=MESSAGE_CHATID, 
+                                                                    photo=QRCODE_IMG,
+                                                                    caption=f"<b>⚜️ کاربر {usrnm}</b>\n\n"
+                                                                            f"🔗 روی لینک زیر کلیک کنید تا کپی شود:\n"
+                                                                            f"`{USER_SUB}`\n\n"
+                                                                            f"❇️ <a href='{USER_SUB}'>برای آموزش چگونگی اتصال و مشاهده باقیمانده اشتراک خود بر روی این متن کلیک کنید‌.</a>"
+                                                                )
+                                        #await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>✅ <code>{USERNAME}</code> | {DATA} GB | {DATE} Days</b>" , reply_markup=ReplyKeyboardRemove() , parse_mode=enums.ParseMode.HTML)
                                     else :
                                         await client.send_message(chat_id=MESSAGE_CHATID , text=USER_SUB , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
                                         UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
@@ -460,7 +564,6 @@ async def holderbot(client: Client, message: Message) :
                     if MESSAGE_TEXT == "👀 change status" :
                         await client.send_message(chat_id=MESSAGE_CHATID , text=DEF_CHANGE_MESSAGER_STATUS(MESSAGE_CHATID) , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML , disable_web_page_preview=True )
                         UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
-
 
 @app.on_callback_query(filters.regex(r'^templates'))
 async def handle_callback_create(client: Client, query: CallbackQuery ):
@@ -519,8 +622,17 @@ async def handle_callback_create(client: Client, query: CallbackQuery ):
             await query.message.delete()
             if not "❌" in USER_SUB :
                 QRCODE_IMG = DEF_CREATE_QRCODE(USER_SUB)
-                await client.send_photo(chat_id=MESSAGE_CHATID , photo=QRCODE_IMG,caption=f"<pre>{USER_SUB}</pre>\n\n" , reply_markup=KEYBOARD_HOME)
-                await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>✅ <code>{USERNAME}</code> | {DATA_LIMIT} GB | {DATE_LIMIT} Days</b>" , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
+            usrnm = USERNAME.replace('user', '')
+            await client.send_photo(
+                                        chat_id=MESSAGE_CHATID, 
+                                        photo=QRCODE_IMG,
+                                        caption=f"<b>⚜️ کاربر {usrnm}</b>\n\n"
+                                                f"🔗 روی لینک زیر کلیک کنید تا کپی شود:\n"
+                                                f"`{USER_SUB}`\n\n"
+                                                f"❇️ <a href='{USER_SUB}'>برای آموزش چگونگی اتصال و مشاهده باقیمانده اشتراک خود بر روی این متن کلیک کنید‌.</a>"
+                                    )
+                #await client.send_photo(chat_id=MESSAGE_CHATID , photo=QRCODE_IMG,caption=f"<pre>{USER_SUB}</pre>\n\n" , reply_markup=KEYBOARD_HOME)
+                #await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>✅ <code>{USERNAME}</code> | {DATA_LIMIT} GB | {DATE_LIMIT} Days</b>" , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
                 UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
             else :
                 await client.send_message(chat_id=MESSAGE_CHATID , text=USER_SUB , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
@@ -531,15 +643,24 @@ async def handle_callback_create(client: Client, query: CallbackQuery ):
                 USER_SUB = DEF_CREATE_USER(MESSAGE_CHATID , USERNAME , DATA_LIMIT , DATE_LIMIT , PROXIES_FINAL , INBOUND_FINAL)
                 if not "❌" in USER_SUB :
                     QRCODE_IMG = DEF_CREATE_QRCODE(USER_SUB)
-                    await client.send_photo(chat_id=MESSAGE_CHATID , photo=QRCODE_IMG,caption=f"<pre>{USER_SUB}</pre>" , reply_markup=ReplyKeyboardRemove())
-                    await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>✅ <code>{USERNAME}</code> | {DATA_LIMIT} GB | {DATE_LIMIT} Days</b>" , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
+            usrnm = USERNAME.replace('user', '')
+            await client.send_photo(
+                                        chat_id=MESSAGE_CHATID, 
+                                        photo=QRCODE_IMG,
+                                        caption=f"<b>⚜️ کاربر {usrnm}</b>\n\n"
+                                                f"🔗 روی لینک زیر کلیک کنید تا کپی شود:\n"
+                                                f"`{USER_SUB}`\n\n"
+                                                f"❇️ <a href='{USER_SUB}'>برای آموزش چگونگی اتصال و مشاهده باقیمانده اشتراک خود بر روی این متن کلیک کنید‌.</a>"
+                                    )
+                    #await client.send_photo(chat_id=MESSAGE_CHATID , photo=QRCODE_IMG,caption=f"<pre>{USER_SUB}</pre>" , reply_markup=ReplyKeyboardRemove())
+                    #await client.send_message(chat_id=MESSAGE_CHATID , text=f"<b>✅ <code>{USERNAME}</code> | {DATA_LIMIT} GB | {DATE_LIMIT} Days</b>" , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
                 else :
                     await client.send_message(chat_id=MESSAGE_CHATID , text=USER_SUB , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
                     UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
                     break
             await client.send_message(chat_id=MESSAGE_CHATID , text=f"🏛" , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
-            UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
-        
+           UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
+
     elif CALLBACK_DATA == "create no" :
 
         await query.message.delete()
@@ -556,7 +677,6 @@ async def handle_callback_user_info(client: Client, query: CallbackQuery):
         PANEL_TOKEN = DEF_PANEL_ACCESS(PANEL_USER, PANEL_PASS, PANEL_DOMAIN)
         MESSAGES_SPLIT = CALLBACK_DATA.strip().split(" ")
         CB_USERNAME = MESSAGES_SPLIT[3]
-        
         if CALLBACK_DATA.startswith("user info QRCODE") :
             URL = f"https://{PANEL_DOMAIN}/api/user/{CB_USERNAME}"
             RESPONCE = requests.get(url=URL , headers=PANEL_TOKEN)
@@ -567,9 +687,31 @@ async def handle_callback_user_info(client: Client, query: CallbackQuery):
                 return
             RD_SUB_URL = RESPONCE_DATA.get("subscription_url")
             QRCODE_IMG = DEF_CREATE_QRCODE(RD_SUB_URL)
-            await client.send_photo(chat_id=query.from_user.id, photo=QRCODE_IMG,caption=f"<pre>{RD_SUB_URL}</pre>")
+            #await client.send_photo(chat_id=query.from_user.id, photo=QRCODE_IMG,caption=f"<pre>{RD_SUB_URL}</pre>")
+            usrnm = CB_USERNAME.replace('user', '')
+            await client.send_photo(
+                                        chat_id=query.from_user.id, 
+                                        photo=QRCODE_IMG,
+                                        caption=f"<b>⚜️ کاربر {usrnm}</b>\n\n"
+                                                f"🔗 روی لینک زیر کلیک کنید تا کپی شود:\n"
+                                                f"`{RD_SUB_URL}`\n\n"
+                                                f"❇️ <a href='{RD_SUB_URL}'>برای آموزش چگونگی اتصال و مشاهده باقیمانده اشتراک خود بر روی این متن کلیک کنید‌.</a>"
+                                    )
 
-
+        elif CALLBACK_DATA.startswith("user info edit_data_limit"):
+            #CB_USERNAME = CALLBACK_DATA.split()[1]
+            user_session[query.from_user.id] = {'edit_field': 'data_limit', 'username': CB_USERNAME}
+            await query.message.reply_text("Please enter the new data limit in GB:")
+    
+        # Handler to initiate edit process for expire duration
+        elif CALLBACK_DATA.startswith("user info edit_expire_duration"):
+            user_session[query.from_user.id] = {'edit_field': 'expire_duration', 'username': CB_USERNAME}
+            await query.message.reply_text("Please enter the new expire duration in days:")
+            
+        elif CALLBACK_DATA.startswith("user info edit_data_time"):
+            user_session[query.from_user.id] = {'edit_field': ['data_limit', 'expire_duration'], 'username': CB_USERNAME}
+            await query.message.reply_text("Please enter the new data limit in GB and the new expire duration in day separated in space:")
+            
         elif CALLBACK_DATA.startswith("user info UPDATE") or CALLBACK_DATA.startswith("user info NO") :
             try :
                 TEXT , KEYBOARD_UPDATE_STASE = DEF_STASE_USER (query.from_user.id , CB_USERNAME , KEYBOARD_HOME)
@@ -593,7 +735,54 @@ async def handle_callback_user_info(client: Client, query: CallbackQuery):
                 KEYBOARD_DELETE = InlineKeyboardMarkup([
                     [InlineKeyboardButton("✅ YES", callback_data=f'user info DELETE_SURE {CB_USERNAME}'),
                     InlineKeyboardButton("🚫 NO", callback_data=f'user info NO {CB_USERNAME}')]])                
-                await query.edit_message_text(text=f"<b>Are you sure delete <code>{CB_USERNAME}</code> user ?!</b>", reply_markup=KEYBOARD_DELETE)
+                await query.edit_message_text(text=f"<b>Are you sure delete <code>{CB_USERNAME}</code> user ?!</b>", reply_markup=KEYBOARD_DELETE)  
+        
+def update_user_data(chat_id, username, new_data_limit_gb=None, new_expire_duration_days=None):
+    # Import necessary data for API access
+    panel_user, panel_pass, panel_domain = DEF_IMPORT_DATA(chat_id)
+    panel_token = DEF_PANEL_ACCESS(panel_user, panel_pass, panel_domain)
+    user_url = f"https://{panel_domain}/api/user/{username}"
+
+    # Fetch current user data
+    response = requests.get(url=user_url, headers=panel_token)
+    if response.status_code != 200:
+        return False, "Failed to fetch user data"
+    
+    user_data = response.json()
+    #print(user_data)
+    #print('***********************')
+    # Update data limit if provided
+    if user_data["status"] in ['disabled', 'limited', 'expired']:
+        user_data["status"] = "active"
+    if new_data_limit_gb is not None:
+        if user_data["data_limit"]==2 * (1024**3):
+            user_data["data_limit"] = int(float(new_data_limit_gb) * (1024**3))
+        else:
+            user_data["data_limit"] = user_data["data_limit"]+int(float(new_data_limit_gb) * (1024**3))
+        
+        
+        
+
+    # Update expire duration if provided
+    if new_expire_duration_days is not None:
+        #print(user_data["on_hold_expire_duration"],new_expire_duration_days)
+        user_data["on_hold_expire_duration"] = int(new_expire_duration_days) * 24 * 60 * 60
+        #print(user_data["on_hold_expire_duration"])
+        #print('**')
+        if user_data["expire"] is not None:
+            future_date = datetime.now() + timedelta(days=new_expire_duration_days+1)
+            expiryTime = int(future_date.timestamp())
+            user_data["expire"] = expiryTime
+    
+    #print(user_data)
+    # Update the user data
+    update_response = requests.put(url=user_url, headers=panel_token, json=user_data)
+
+    if update_response.status_code == 200:
+        return True
+    else:
+        return False
+
 
 
 app.run()
