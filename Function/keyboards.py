@@ -1,9 +1,9 @@
 from pyrogram.types import *
 from Function.db import *
 
-KEYBOARD_HOME = ReplyKeyboardMarkup([[KeyboardButton("🚀 Create User"),KeyboardButton("🎖 Notice")],
+KEYBOARD_HOME = ReplyKeyboardMarkup([[KeyboardButton("🚀 Create User"),KeyboardButton("✏️ Edit Users")],
     [KeyboardButton("👤 Users"), KeyboardButton("👨🏻‍💻 Admins"), KeyboardButton("🎗 Nodes")],
-    [KeyboardButton("🗃 Templates"),KeyboardButton("🎛 Monitoring")],
+    [KeyboardButton("🗃 Templates"),KeyboardButton("🎖 Notice"),KeyboardButton("🎛 Monitoring")],
     [KeyboardButton("🔍 Search"), KeyboardButton("💬 Help"), KeyboardButton("🖼 QR Code")]], resize_keyboard=True)
 
 
