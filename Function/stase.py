@@ -39,9 +39,12 @@ def DEF_PATCH_TO_SECEND(TIME) :
 
 def DEF_KEYBOARD_UPDATE_STASE(RD_USERNAME) :
     KEYBOARD_UPDATE_STASE = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔁 Update", callback_data=f'user info UPDATE {RD_USERNAME}'),
-        InlineKeyboardButton("🖼 QRcode", callback_data=f'user info QRCODE {RD_USERNAME}')],
-        [InlineKeyboardButton("🗑 DELETE", callback_data=f'user info DELETE {RD_USERNAME}')]])
+        [InlineKeyboardButton("✏️ Edit Data", callback_data=f'user info edit_data_limit {RD_USERNAME}'),
+         InlineKeyboardButton("⏰ Edit Time", callback_data=f'user info edit_expire_duration {RD_USERNAME}')],
+        [InlineKeyboardButton("📝 Edit Data & Time", callback_data=f'user info edit_data_time {RD_USERNAME}')],
+        [InlineKeyboardButton("🖼 QRcode", callback_data=f'user info QRCODE {RD_USERNAME}'),
+        InlineKeyboardButton("🔁 Update", callback_data=f'user info UPDATE {RD_USERNAME}')],
+         [InlineKeyboardButton("🗑 DELETE", callback_data=f'user info DELETE {RD_USERNAME}')]])
     return KEYBOARD_UPDATE_STASE
 
 def DEF_STASE_USER (CHATID , MESSAGE_TEXT , KEYBOARD_HOME):
@@ -61,17 +64,17 @@ def DEF_STASE_USER (CHATID , MESSAGE_TEXT , KEYBOARD_HOME):
         RESPONCE = requests.get(url=URL , headers=PANEL_TOKEN)
         if RESPONCE.status_code == 200 :
             RESPONCE_DATA = RESPONCE.json()
-            USERS = [user.get('username') for user in RESPONCE_DATA.get('users', [])]
-            similarity_scores = [(user, SequenceMatcher(None, MESSAGE_TEXT, user).ratio()) for user in USERS]
+            USERS = [user.get('username').lower() for user in RESPONCE_DATA.get('users', [])]
+            similarity_scores = [(user, SequenceMatcher(None, MESSAGE_TEXT.lower(), user).ratio()) for user in USERS]
             similar_users = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
             similar_users = [user for user, score in similar_users if score > 0.55]
             if similar_users:
                 similar_users_text = "<b>,</b> ".join([f"<code>{user}</code>" for user in similar_users])
                 TEXT = f"<b>Did you mean :</b> {similar_users_text}"
             else :
-                TEXT = "<b>I can't find user.</b>"
+                TEXT = "<b>I can't find 3user.</b>"
         else :
-            TEXT = "<b>I can't find user.</b>"
+            TEXT = "<b>I can't find 4user.</b>"
         return TEXT , KEYBOARD_HOME
     RD_USERNAME = RESPONCE_DATA.get("username")
     RD_STATUS = RESPONCE_DATA.get("status")           
