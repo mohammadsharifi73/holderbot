@@ -60,22 +60,30 @@ def DEF_STASE_USER (CHATID , MESSAGE_TEXT , KEYBOARD_HOME):
     if RESPONCE.status_code == 200 :
         RESPONCE_DATA = json.loads(RESPONCE.text)
     else :
-        URL = f"https://{PANEL_DOMAIN}/api/users"
-        RESPONCE = requests.get(url=URL , headers=PANEL_TOKEN)
-        if RESPONCE.status_code == 200 :
-            RESPONCE_DATA = RESPONCE.json()
-            USERS = [user.get('username').lower() for user in RESPONCE_DATA.get('users', [])]
-            similarity_scores = [(user, SequenceMatcher(None, MESSAGE_TEXT.lower(), user).ratio()) for user in USERS]
-            similar_users = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
-            similar_users = [user for user, score in similar_users if score > 0.55]
-            if similar_users:
-                similar_users_text = "<b>,</b> ".join([f"<code>{user}</code>" for user in similar_users])
-                TEXT = f"<b>Did you mean :</b> {similar_users_text}"
-            else :
-                TEXT = "<b>I can't find 3user.</b>"
-        else :
-            TEXT = "<b>I can't find 4user.</b>"
-        return TEXT , KEYBOARD_HOME
+        #URL = f"https://{PANEL_DOMAIN}/api/users"
+        #RESPONCE = requests.get(url=URL , headers=PANEL_TOKEN)
+        #if RESPONCE.status_code == 200 :
+        #    RESPONCE_DATA = RESPONCE.json()
+        #    USERS = [user.get('username').lower() for user in RESPONCE_DATA.get('users', [])]
+        #    similarity_scores = [(user, SequenceMatcher(None, MESSAGE_TEXT.lower(), user).ratio()) for user in USERS]
+        #    similar_users = sorted(similarity_scores, key=lambda x: x[1], reverse=True)
+        #    similar_users = [user for user, score in similar_users if score > 0.55]
+        #    if similar_users:
+        #        similar_users_text = "<b>,</b> ".join([f"<code>{user}</code>" for user in similar_users])
+        #        TEXT = f"<b>Did you mean :</b> {similar_users_text}"
+        #    else :
+        #        TEXT = "<b>I can't find 3user.</b>"
+        #else :
+        #    TEXT = "<b>I can't find 4user.</b>"
+        try:
+            MT='user'+MESSAGE_TEXT
+            URL = f"https://{PANEL_DOMAIN}/api/user/{MT}"
+            RESPONCE = requests.get(url=URL , headers=PANEL_TOKEN)
+            if RESPONCE.status_code == 200 :
+                RESPONCE_DATA = json.loads(RESPONCE.text)
+        except:
+            TEXT = "<b>Wrong Input.</b>"
+            return TEXT , KEYBOARD_HOME
     RD_USERNAME = RESPONCE_DATA.get("username")
     RD_STATUS = RESPONCE_DATA.get("status")           
     if RD_STATUS == "active" or RD_STATUS == "expired" or RD_STATUS == "limited" or RD_STATUS == "disabled" :
@@ -118,7 +126,7 @@ def DEF_STASE_USER (CHATID , MESSAGE_TEXT , KEYBOARD_HOME):
         TEXT += f"<b>Last online time :</b> {RD_LAST_ONLINE}\n"
         TEXT += f"<b>Last update sub :</b> {RD_SUB_LAST_UPDATE}\n"
     elif RD_STATUS == "on_hold" :
-        RD_ON_HOLD_DATE = int((RESPONCE_DATA.get("on_hold_expire_duration")) / (24*60*60))
+        RD_ON_HOLD_DATE = "On Hold"
         RD_ON_HOLD_DATA = int((RESPONCE_DATA.get("data_limit")) / (1024 ** 3))
         RD_ON_HOLD_DATA_USERS = "limited"
         TEXT = f"<b>Username :</b> {RD_USERNAME} ({RD_STATUS})\n<b>Data {RD_ON_HOLD_DATA_USERS} :</b> {RD_ON_HOLD_DATA} GB\n<b>Date {RD_ON_HOLD_DATA_USERS} :</b> {RD_ON_HOLD_DATE} Days"
