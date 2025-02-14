@@ -62,7 +62,7 @@ def DEF_CREATE_USER(CHATID , USERNAME , DATA , DATE , PROXIES , INBOUNDS) :
         else :
             TEXT = f"❌<b> I can't find user.</b>\n<pre>{RESPONCE.text}</pre>"
     else :
-        TEXT = f"❌<b> I can't create user.</b>\n<pre>{RESPONCE.text}</pre>"
+        TEXT = f"❌<b> I can't create user {USERNAME}.</b>\n<pre>{RESPONCE.text}</pre>"
     return TEXT
 
 
