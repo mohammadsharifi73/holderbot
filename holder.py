@@ -527,7 +527,7 @@ async def holderbot(client: Client, message: Message) :
                                     else :
                                         await client.send_message(chat_id=MESSAGE_CHATID , text=USER_SUB , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
                                         UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
-                                        break
+                                        
                                 await client.send_message(chat_id=MESSAGE_CHATID , text=f"🏛" , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
                                 UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
 
@@ -657,7 +657,7 @@ async def handle_callback_create(client: Client, query: CallbackQuery ):
                 else:
                     await client.send_message(chat_id=MESSAGE_CHATID , text=USER_SUB , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
                     UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
-                    break
+                    
             await client.send_message(chat_id=MESSAGE_CHATID , text=f"🏛" , reply_markup=KEYBOARD_HOME , parse_mode=enums.ParseMode.HTML)
             UPDATE_STEP = DEF_UPDATE_STEP(MESSAGE_CHATID,"None")
 
