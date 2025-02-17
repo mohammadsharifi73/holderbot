@@ -123,7 +123,7 @@ def DEF_STASE_USER (CHATID , MESSAGE_TEXT , KEYBOARD_HOME):
             rm="❌"
         else:
             rm=RD_DATA_LIMIT-RD_DATA_USED
-        TEXT += f"<b>Data Remain :</b> {rm} GB\n"
+        TEXT += f"<b>Data Remain :</b> {rm:.2f} GB\n"
         TEXT += f"<b>Date Left :</b> {RD_DATE_LEFT}\n"
         if RD_DATE_JALALI :
             TEXT += f"<b>Expiration Date :</b> {RD_DATE_JALALI}\n"
