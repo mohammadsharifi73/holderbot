@@ -128,6 +128,7 @@ async def holderbot(client: Client, message: Message) :
                     #print(user_id,MESSAGE_CHATID)
                     if user_id in user_session and 'edit_field' in user_session[user_id]:
                         user_response = message.text.split()
+                        user_response = convert_persian_to_latin(user_response)
                         if len(user_response) == 2:
                             username = user_session[user_id]['username']
                             try:
@@ -172,6 +173,7 @@ async def holderbot(client: Client, message: Message) :
                         else:
                             try:
                                 input_str=message.text
+                                input_str = convert_persian_to_latin(input_str)
                                 input_str = re.sub(r'\n+', '\n', input_str)
                                 lines = input_str.strip().split('\n')
                                 for user_response in lines:
@@ -736,7 +738,12 @@ async def handle_callback_user_info(client: Client, query: CallbackQuery):
                     [InlineKeyboardButton("✅ YES", callback_data=f'user info DELETE_SURE {CB_USERNAME}'),
                     InlineKeyboardButton("🚫 NO", callback_data=f'user info NO {CB_USERNAME}')]])                
                 await query.edit_message_text(text=f"<b>Are you sure delete <code>{CB_USERNAME}</code> user ?!</b>", reply_markup=KEYBOARD_DELETE)  
-        
+  
+def convert_persian_to_latin(text):
+    persian_to_latin = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
+    arabic_to_latin = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
+    return text.translate(persian_to_latin).translate(arabic_to_latin)       
+  
 def update_user_data(chat_id, username, new_data_limit_gb=None, new_expire_duration_days=None):
     # Import necessary data for API access
     panel_user, panel_pass, panel_domain = DEF_IMPORT_DATA(chat_id)
